@@ -15,6 +15,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -29,15 +30,33 @@ type verHolder struct {
 	verifier func() verImpl
 }
 
-type verifier struct {
+type Verifier struct {
 	keys map[string]verHolder
 
 	// For testing
 	nowFunc func() time.Time
 }
 
+func NewVerifier(opts ...verifyOption) Verifier {
+	v := Verifier{
+		keys:    make(map[string]verHolder),
+		nowFunc: time.Now,
+	}
+
+	for _, o := range opts {
+		o.configureVerify(&v)
+	}
+
+	return v
+}
+
+func (v *Verifier) VerifyRequest(req *http.Request) error{
+	msg := messageFromRequest(req)
+	return v.verify(msg)
+}
+
 // XXX: note about fail fast.
-func (v *verifier) Verify(msg *message) error {
+func (v *Verifier) verify(msg *message) error {
 	sigHdr := msg.Header.Get("Signature")
 	if sigHdr == "" {
 		return errNotSigned

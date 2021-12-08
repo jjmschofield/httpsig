@@ -106,7 +106,7 @@ func (r rt) RoundTrip(req *http.Request) (*http.Response, error) { return r(req)
 func NewVerifyMiddleware(opts ...verifyOption) func(http.Handler) http.Handler {
 
 	// TODO: form and multipart support
-	v := verifier{
+	v := Verifier{
 		keys:    make(map[string]verHolder),
 		nowFunc: time.Now,
 	}
@@ -127,7 +127,7 @@ func NewVerifyMiddleware(opts ...verifyOption) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
 			msg := messageFromRequest(r)
-			err := v.Verify(msg)
+			err := v.verify(msg)
 			if err != nil {
 				serveErr(rw)
 				return
@@ -166,7 +166,7 @@ type signOption interface {
 }
 
 type verifyOption interface {
-	configureVerify(v *verifier)
+	configureVerify(v *Verifier)
 }
 
 type signOrVerifyOption interface {
@@ -176,11 +176,11 @@ type signOrVerifyOption interface {
 
 type optImpl struct {
 	s func(s *signer)
-	v func(v *verifier)
+	v func(v *Verifier)
 }
 
 func (o *optImpl) configureSign(s *signer)     { o.s(s) }
-func (o *optImpl) configureVerify(v *verifier) { o.v(v) }
+func (o *optImpl) configureVerify(v *Verifier) { o.v(v) }
 
 // WithHeaders sets the list of headers that will be included in the signature.
 // The Digest header is always included (and the digest calculated).
@@ -205,7 +205,7 @@ func WithSignRsaPssSha512(keyID string, pk *rsa.PrivateKey) signOption {
 // given public key using the given key id.
 func WithVerifyRsaPssSha512(keyID string, pk *rsa.PublicKey) verifyOption {
 	return &optImpl{
-		v: func(v *verifier) { v.keys[keyID] = verifyRsaPssSha512(pk) },
+		v: func(v *Verifier) { v.keys[keyID] = verifyRsaPssSha512(pk) },
 	}
 }
 
@@ -221,7 +221,7 @@ func WithSignEcdsaP256Sha256(keyID string, pk *ecdsa.PrivateKey) signOption {
 // given public key using the given key id.
 func WithVerifyEcdsaP256Sha256(keyID string, pk *ecdsa.PublicKey) verifyOption {
 	return &optImpl{
-		v: func(v *verifier) { v.keys[keyID] = verifyEccP256(pk) },
+		v: func(v *Verifier) { v.keys[keyID] = verifyEccP256(pk) },
 	}
 }
 
@@ -230,6 +230,6 @@ func WithVerifyEcdsaP256Sha256(keyID string, pk *ecdsa.PublicKey) verifyOption {
 func WithHmacSha256(keyID string, secret []byte) signOrVerifyOption {
 	return &optImpl{
 		s: func(s *signer) { s.keys[keyID] = signHmacSha256(secret) },
-		v: func(v *verifier) { v.keys[keyID] = verifyHmacSha256(secret) },
+		v: func(v *Verifier) { v.keys[keyID] = verifyHmacSha256(secret) },
 	}
 }
